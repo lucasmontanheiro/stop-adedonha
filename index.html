@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+  <title>STOP / Adedonha</title>
+  <style>
+    :root {
+      --bg: #f5f5f7;
+      --card-bg: #ffffff;
+      --text: #1d1d1f;
+      --muted: #86868b;
+      --primary: #0071e3;
+      --primary-hover: #0077ed;
+      --border: #d2d2d7;
+      --radius: 12px;
+      --accent-ok: #34c759;
+      --accent-warn: #ff3b30;
+      --nav-height: 64px;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      line-height: 1.4;
+      padding-bottom: var(--nav-height);
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 480px;
+      padding: 16px;
+      min-height: calc(100vh - var(--nav-height));
+    }
+
+    h1 { font-size: 24px; font-weight: 700; margin: 8px 0; text-align: center; }
+    h2 { font-size: 18px; font-weight: 600; margin: 0 0 12px; }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .muted { color: var(--muted); font-size: 13px; text-align: center; margin-bottom: 16px; }
+
+    .field-group { margin-bottom: 16px; }
+    label { display: block; font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    input, textarea {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-size: 16px;
+      background: #fafafa;
+    }
+    input:focus, textarea:focus { outline: none; border-color: var(--primary); background: #fff; }
+
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+    .row > * { flex: 1; min-width: 120px; }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    button:active { transform: scale(0.98); }
+    button.primary { background: var(--primary); color: #fff; border: none; }
+    button.secondary { background: #f0f0f2; color: var(--text); border: none; }
+    button.ghost { border: none; background: transparent; color: var(--primary); font-size: 13px; padding: 8px; }
+
+    .tab-bar {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      max-width: 480px;
+      height: var(--nav-height);
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 100;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .tab-btn {
+      flex: 1;
+      height: 100%;
+      border: none;
+      background: transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--muted);
+      font-weight: 500;
+      padding: 0;
+    }
+    .tab-btn.active { color: var(--primary); }
+    .tab-btn span { font-size: 20px; }
+
+    .game-stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .stat-pill {
+      background: #f0f0f2;
+      padding: 8px;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .stat-label { font-size: 10px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+    .stat-value { font-size: 16px; font-weight: 700; display: block; }
+    .stat-value.big { font-size: 28px; color: var(--primary); }
+
+    .status-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+    .status-badge.ok { background: var(--accent-ok); color: #fff; }
+    .status-badge.warn { background: var(--accent-warn); color: #fff; }
+
+    .grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 12px; }
+    .input-item label { margin-bottom: 4px; color: var(--text); }
+
+    .answers {
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: #f8f8f8;
+      padding: 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      border: 1px solid var(--border);
+    }
+
+    .hidden { display: none !important; }
+    
+    .action-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .settings-toggle {
+      text-align: center;
+      margin: 8px 0;
+    }
+
+    @media (min-width: 480px) {
+      body { padding: 40px 0 calc(40px + var(--nav-height)); }
+      .tab-bar { border-radius: 20px 20px 0 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <h1>STOP / Adedonha</h1>
+
+    <!-- View: Config -->
+    <div id="view-config">
+      <div class="muted">Configurações da Sala</div>
+      <div class="card">
+        <div class="field-group">
+          <label>Seu Nome</label>
+          <input id="playerName" placeholder="Ex: Ana" />
+        </div>
+
+        <div id="extraSettings" class="hidden">
+          <div class="row">
+            <div class="field-group">
+              <label>Room Code</label>
+              <input id="roomId" placeholder="ABC123" />
+            </div>
+            <div class="field-group">
+              <label>Tempo (s)</label>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <input type="number" id="seconds" min="10" max="600" step="5" />
+                <label style="margin:0; white-space:nowrap; display:flex; align-items:center; gap:4px; text-transform:none; font-size:12px; font-weight:normal; color:var(--text);">
+                  <input type="checkbox" id="noLimit" style="width:auto; margin:0;" /> Sem limite
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="field-group">
+            <label>Letras Válidas</label>
+            <input id="alphabet" />
+          </div>
+          <div class="field-group">
+            <label>Categorias (uma por linha)</label>
+            <textarea id="categories" rows="5"></textarea>
+            <button id="applyCategoriesBtn" class="ghost" style="margin-top:4px">Salvar categorias localmente</button>
+          </div>
+        </div>
+        
+        <div class="settings-toggle">
+          <button id="toggleSettingsBtn" class="ghost">Configurações Avançadas ↓</button>
+        </div>
+
+        <div class="action-bar">
+          <button class="primary" id="startRoundBtn">🚀 Iniciar Nova Rodada</button>
+          <div class="row" style="margin-bottom: 0;">
+            <button id="joinBtn" class="secondary">🔗 Atualizar URL</button>
+            <button id="resetBtn" class="secondary" title="Reset local">🗑️ Reset</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- View: Game -->
+    <div id="view-game" class="hidden">
+      <div class="card">
+        <div class="game-stats">
+          <div class="stat-pill">
+            <span class="stat-label">Rodada</span>
+            <span id="roundNum" class="stat-value">—</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-label">Letra</span>
+            <span id="letter" class="stat-value big">—</span>
+          </div>
+          <div class="stat-pill">
+            <span class="stat-label">Tempo</span>
+            <span id="timeLeft" class="stat-value">—</span>
+          </div>
+        </div>
+        <div style="text-align: center;">
+          <span id="status" class="status-badge">SEM RODADA</span>
+        </div>
+      </div>
+
+      <div class="card" id="playCard">
+        <h2 style="text-align: center; margin-bottom: 16px;">Sua Planilha</h2>
+        
+        <div id="notInRound" class="muted" style="padding: 20px 0;">
+          Nenhuma rodada ativa.<br>Configure na aba anterior ou entre pelo link.
+        </div>
+
+        <div id="inputsWrap" class="hidden"></div>
+
+        <div id="gameActions" class="action-bar hidden">
+          <button class="primary" id="stopBtn" style="background: var(--accent-warn);">🛑 STOP!</button>
+          <div class="row" style="margin-bottom: 0;">
+            <button id="copyBtn" class="secondary">📋 Copiar</button>
+            <button id="revealBtn" class="secondary">✨ Revelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- View: Reveal (Full screen overlay style) -->
+    <div class="card hidden" id="revealCard">
+      <h2>Resumo da Rodada</h2>
+      <div class="answers" id="answersOut"></div>
+      <div class="action-bar">
+        <button id="backBtn" class="primary">Voltar ao Jogo</button>
+      </div>
+    </div>
+  </div>
+
+  <nav class="tab-bar" id="tabBar">
+    <button class="tab-btn active" id="btn-tab-config">
+      <span>⚙️</span> Config
+    </button>
+    <button class="tab-btn" id="btn-tab-game">
+      <span>✍️</span> Jogo
+    </button>
+  </nav>
+
+<script>
+(() => {
+  const el = (id) => document.getElementById(id);
+
+  // ======== Tabs ========
+  const views = {
+    config: el("view-config"),
+    game: el("view-game")
+  };
+  const tabBtns = {
+    config: el("btn-tab-config"),
+    game: el("btn-tab-game")
+  };
+
+  function switchTab(tabId) {
+    if (el("revealCard").classList.contains("hidden") === false) {
+      backReveal();
+    }
+    Object.keys(views).forEach(k => {
+      views[k].classList.toggle("hidden", k !== tabId);
+      tabBtns[k].classList.toggle("active", k === tabId);
+    });
+  }
+
+  tabBtns.config.addEventListener("click", () => switchTab("config"));
+  tabBtns.game.addEventListener("click", () => switchTab("game"));
+
+  // ======== Settings UI Toggle ========
+  const toggleSettingsBtn = el("toggleSettingsBtn");
+  const extraSettings = el("extraSettings");
+  let settingsVisible = false;
+
+  toggleSettingsBtn.addEventListener("click", () => {
+    settingsVisible = !settingsVisible;
+    extraSettings.classList.toggle("hidden", !settingsVisible);
+    toggleSettingsBtn.textContent = settingsVisible ? "Fechar Configurações ↑" : "Configurações Avançadas ↓";
+  });
+
+  // ======== Local persistence ========
+  const storeKey = "stop_linkroom_v1";
+  const loadLocal = () => {
+    try { return JSON.parse(localStorage.getItem(storeKey)) ?? {}; }
+    catch { return {}; }
+  };
+  const saveLocal = (obj) => localStorage.setItem(storeKey, JSON.stringify(obj));
+
+  const defaults = {
+    playerName: "",
+    roomId: "",
+    seconds: 60,
+    noLimit: false,
+    alphabet: "ABCDEFGHILMNOPQRSTUVXZJ",
+    categories: ["Nome", "Animal", "Cidade", "Objeto", "Comida", "Profissão"]
+  };
+
+  let roundState = null;
+  let timer = null;
+
+  // ======== UI refs ========
+  const playerNameEl = el("playerName");
+  const roomIdEl = el("roomId");
+  const secondsEl = el("seconds");
+  const noLimitEl = el("noLimit");
+  const alphabetEl = el("alphabet");
+  const categoriesEl = el("categories");
+
+  const roundNumEl = el("roundNum");
+  const letterEl = el("letter");
+  const timeLeftEl = el("timeLeft");
+  const statusEl = el("status");
+
+  const inputsWrap = el("inputsWrap");
+  const notInRound = el("notInRound");
+  const gameActions = el("gameActions");
+  const revealCard = el("revealCard");
+  const answersOut = el("answersOut");
+  const tabBar = el("tabBar");
+
+  // ======== Helpers ========
+  function normalizeCategory(s) { return s.trim().replace(/\s+/g, " "); }
+  function encodeCats(cats) { return encodeURIComponent(cats.join("|")); }
+  function decodeCats(raw) {
+    if (!raw) return null;
+    return decodeURIComponent(raw).split("|").map(normalizeCategory).filter(Boolean);
+  }
+  function pickLetter(alphabet) {
+    const alpha = (alphabet || "").replace(/[^A-Za-zÀ-ÿ]/g, "").toUpperCase();
+    if (!alpha.length) return "A";
+    return alpha[Math.floor(Math.random() * alpha.length)];
+  }
+  function nowMs() { return Date.now(); }
+
+  function setStatus(text, kind) {
+    statusEl.textContent = text.toUpperCase();
+    statusEl.className = "status-badge";
+    if (kind) statusEl.classList.add(kind);
+  }
+
+  function clearTimer() { if (timer) clearInterval(timer); timer = null; }
+
+  function getAnswersKey() {
+    const room = roundState?.room || roomIdEl.value.trim();
+    const round = roundState?.round || "0";
+    return `stop_answers_${room}_${round}`;
+  }
+
+  function loadAnswers() {
+    try { return JSON.parse(localStorage.getItem(getAnswersKey())) ?? {}; }
+    catch { return {}; }
+  }
+
+  function saveAnswers(ans) { localStorage.setItem(getAnswersKey(), JSON.stringify(ans)); }
+
+  function buildInputs() {
+    inputsWrap.innerHTML = "";
+    const cats = (roundState?.cats || []).map(normalizeCategory).filter(Boolean);
+    const answers = loadAnswers();
+    const grid = document.createElement("div");
+    grid.className = "grid";
+
+    cats.forEach((cat) => {
+      const item = document.createElement("div");
+      item.className = "input-item";
+      const label = document.createElement("label");
+      label.textContent = cat;
+      const input = document.createElement("input");
+      input.placeholder = roundState?.letter ? `Começa com "${roundState.letter}"…` : "";
+      input.value = answers[cat] ?? "";
+      input.addEventListener("input", () => {
+        const next = loadAnswers();
+        next[cat] = input.value;
+        saveAnswers(next);
+      });
+      item.appendChild(label);
+      item.appendChild(input);
+      grid.appendChild(item);
+    });
+    inputsWrap.appendChild(grid);
+  }
+
+  function computeTimeLeft() {
+    if (!roundState?.endsAt) return null;
+    const end = Number(roundState.endedAt || roundState.endsAt);
+    return Math.max(0, Math.ceil((end - nowMs()) / 1000));
+  }
+
+  function renderRoundHeader() {
+    if (!roundState) {
+      roundNumEl.textContent = "—"; letterEl.textContent = "—"; timeLeftEl.textContent = "—";
+      setStatus("Sem rodada");
+      inputsWrap.classList.add("hidden"); gameActions.classList.add("hidden"); notInRound.classList.remove("hidden");
+      return;
+    }
+    roundNumEl.textContent = String(roundState.round);
+    letterEl.textContent = roundState.letter;
+    const left = computeTimeLeft();
+    
+    if (roundState.endsAt) {
+      timeLeftEl.textContent = (left ?? "—") + "s";
+    } else {
+      timeLeftEl.textContent = "∞";
+    }
+
+    const ended = Boolean(roundState.endedAt) || (roundState.endsAt && left === 0);
+    if (ended) setStatus("Encerrada", "warn"); else setStatus("Em jogo", "ok");
+    inputsWrap.classList.remove("hidden"); gameActions.classList.remove("hidden"); notInRound.classList.add("hidden");
+  }
+
+  function startTicking() {
+    clearTimer();
+    timer = setInterval(() => {
+      if (!roundState) return;
+      const left = computeTimeLeft();
+      
+      if (roundState.endsAt) {
+        timeLeftEl.textContent = (left ?? "—") + "s";
+      } else {
+        timeLeftEl.textContent = "∞";
+      }
+
+      if (Boolean(roundState.endedAt) || (roundState.endsAt && left === 0)) {
+        setStatus("Encerrada", "warn");
+      }
+    }, 250);
+  }
+
+  function getUrlRoundState() {
+    const u = new URL(location.href);
+    const room = u.searchParams.get("room"), round = u.searchParams.get("round"), letter = u.searchParams.get("letter"), 
+          catsRaw = u.searchParams.get("cats"), endsAt = u.searchParams.get("endsAt"), endedAt = u.searchParams.get("endedAt");
+    if (!room || !round || !letter || !catsRaw) return null;
+    return { room, round: Number(round), letter, cats: decodeCats(catsRaw) || defaults.categories, 
+             endsAt: endsAt ? Number(endsAt) : null, endedAt: endedAt ? Number(endedAt) : null };
+  }
+
+  function setUrlFromState(st) {
+    const u = new URL(location.href);
+    u.searchParams.set("room", st.room); u.searchParams.set("round", String(st.round)); u.searchParams.set("letter", st.letter);
+    u.searchParams.set("cats", encodeCats(st.cats)); 
+    if (st.endsAt) u.searchParams.set("endsAt", String(st.endsAt)); else u.searchParams.delete("endsAt");
+    if (st.endedAt) u.searchParams.set("endedAt", String(st.endedAt)); else u.searchParams.delete("endedAt");
+    history.replaceState(null, "", u.toString());
+  }
+
+  function makeShareLink(st) {
+    const u = new URL(location.href);
+    u.searchParams.set("room", st.room); u.searchParams.set("round", String(st.round)); u.searchParams.set("letter", st.letter);
+    u.searchParams.set("cats", encodeCats(st.cats));
+    if (st.endsAt) u.searchParams.set("endsAt", String(st.endsAt)); else u.searchParams.delete("endsAt");
+    if (st.endedAt) u.searchParams.set("endedAt", String(st.endedAt)); else u.searchParams.delete("endedAt");
+    return u.toString();
+  }
+
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch {
+      const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
+      ta.select(); const ok = document.execCommand("copy"); document.body.removeChild(ta); return ok;
+    }
+  }
+
+  function answersToText() {
+    const name = (playerNameEl.value || "").trim() || "Jogador";
+    const cats = (roundState?.cats || defaults.categories);
+    const answers = loadAnswers();
+    const lines = [`👤 ${name}\n📍 Sala ${roundState?.room}\n🔢 Rodada ${roundState?.round}\n🔠 Letra: ${roundState?.letter}`, ""];
+    for (const cat of cats) { lines.push(`${cat}: ${(answers[cat] ?? "").trim() || "—"}`); }
+    return lines.join("\n");
+  }
+
+  // ======== Actions ========
+  function applyCategoriesFromTextarea() {
+    const cats = categoriesEl.value.split("\n").map(normalizeCategory).filter(Boolean);
+    const local = loadLocal(); local.categories = cats.length ? cats : defaults.categories; saveLocal(local);
+  }
+
+  function joinFromUrl() {
+    const st = getUrlRoundState();
+    roundState = st;
+    if (roundState) {
+      roomIdEl.value = roundState.room;
+      categoriesEl.value = (roundState.cats || []).join("\n");
+      buildInputs();
+      renderRoundHeader();
+      startTicking();
+      switchTab("game");
+    } else {
+      roundState = null;
+      renderRoundHeader();
+      clearTimer();
+      switchTab("config");
+    }
+  }
+
+  async function startNewRound() {
+    const local = loadLocal();
+    const room = (roomIdEl.value || "").trim() || randomRoomCode();
+    const seconds = Math.max(10, Math.min(600, Number(secondsEl.value || defaults.seconds)));
+    const alphabet = String(alphabetEl.value || defaults.alphabet).toUpperCase();
+    const cats = (categoriesEl.value || "").split("\n").map(normalizeCategory).filter(Boolean);
+    const categories = cats.length ? cats : (local.categories || defaults.categories);
+    const currentRound = (roundState?.room === room) ? (Number(roundState.round) + 1) : 1;
+    const useTimer = !noLimitEl.checked;
+
+    roundState = { 
+      room, 
+      round: currentRound, 
+      letter: pickLetter(alphabet), 
+      cats: categories, 
+      endsAt: useTimer ? (nowMs() + seconds * 1000) : null, 
+      endedAt: null 
+    };
+    
+    saveLocal({ 
+      ...defaults, 
+      ...local, 
+      roomId: room, 
+      seconds, 
+      noLimit: noLimitEl.checked,
+      alphabet, 
+      categories, 
+      playerName: playerNameEl.value || local.playerName || "" 
+    });
+    
+    setUrlFromState(roundState);
+    roomIdEl.value = room;
+    localStorage.removeItem(getAnswersKey());
+    buildInputs();
+    renderRoundHeader();
+    startTicking();
+    switchTab("game");
+    const link = makeShareLink(roundState);
+    await copyText(link);
+    alert("Link da rodada copiado!");
+  }
+
+  function randomRoomCode() {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let out = ""; for (let i = 0; i < 6; i++) out += chars[Math.floor(Math.random() * chars.length)];
+    return out;
+  }
+
+  async function stopRoundGenerateEndedLink() {
+    if (!roundState) return;
+    const isEnded = roundState.endedAt || (roundState.endsAt && computeTimeLeft() === 0);
+    if (isEnded) {
+      await copyText(makeShareLink(roundState));
+      alert("Rodada já encerrada. Link copiado."); return;
+    }
+    roundState.endedAt = nowMs();
+    setUrlFromState(roundState);
+    renderRoundHeader();
+    await copyText(makeShareLink(roundState));
+    alert("STOP! Link encerrado copiado.");
+  }
+
+  async function copyMyAnswers() {
+    if (!roundState) return;
+    const ok = await copyText(answersToText());
+    alert(ok ? "Copiado!" : "Erro ao copiar.");
+  }
+
+  function revealForChat() {
+    if (!roundState) return;
+    answersOut.textContent = answersToText();
+    revealCard.classList.remove("hidden");
+    views.config.classList.add("hidden");
+    views.game.classList.add("hidden");
+    tabBar.classList.add("hidden");
+  }
+
+  function backReveal() {
+    revealCard.classList.add("hidden");
+    tabBar.classList.remove("hidden");
+    switchTab("game");
+  }
+
+  function resetLocal() {
+    if(!confirm("Resetar preferências?")) return;
+    localStorage.removeItem(storeKey);
+    saveLocal({ ...defaults });
+    hydrateFromLocal();
+  }
+
+  function hydrateFromLocal() {
+    const local = { ...defaults, ...loadLocal() };
+    playerNameEl.value = local.playerName || "";
+    roomIdEl.value = local.roomId || "";
+    secondsEl.value = local.seconds || defaults.seconds;
+    noLimitEl.checked = !!local.noLimit;
+    alphabetEl.value = local.alphabet || defaults.alphabet;
+    categoriesEl.value = (local.categories || defaults.categories).join("\n");
+  }
+
+  function savePrefsOnChange() {
+    const local = { ...defaults, ...loadLocal() };
+    local.playerName = playerNameEl.value || "";
+    local.roomId = roomIdEl.value || "";
+    local.seconds = Math.max(10, Math.min(600, Number(secondsEl.value || defaults.seconds)));
+    local.noLimit = noLimitEl.checked;
+    local.alphabet = String(alphabetEl.value || defaults.alphabet).toUpperCase();
+    saveLocal(local);
+  }
+
+  el("applyCategoriesBtn").addEventListener("click", () => { applyCategoriesFromTextarea(); alert("Categorias salvas!"); });
+  el("startRoundBtn").addEventListener("click", startNewRound);
+  el("joinBtn").addEventListener("click", joinFromUrl);
+  el("stopBtn").addEventListener("click", stopRoundGenerateEndedLink);
+  el("copyBtn").addEventListener("click", copyMyAnswers);
+  el("revealBtn").addEventListener("click", revealForChat);
+  el("backBtn").addEventListener("click", backReveal);
+  el("resetBtn").addEventListener("click", resetLocal);
+  playerNameEl.addEventListener("change", savePrefsOnChange);
+  roomIdEl.addEventListener("change", savePrefsOnChange);
+  secondsEl.addEventListener("change", savePrefsOnChange);
+  noLimitEl.addEventListener("change", savePrefsOnChange);
+  alphabetEl.addEventListener("change", savePrefsOnChange);
+
+  hydrateFromLocal();
+  joinFromUrl();
+})();
+</script>
+</body>
+</html>
