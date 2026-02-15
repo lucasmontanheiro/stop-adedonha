@@ -450,6 +450,23 @@
       inputsWrap.classList.add("hidden"); gameActions.classList.add("hidden"); notInRound.classList.remove("hidden");
       return;
     }
+
+    const now = nowMs();
+    const startsAt = roundState.startsAt || 0;
+    const isPreparing = now < startsAt;
+
+    if (isPreparing) {
+      const prepLeft = Math.ceil((startsAt - now) / 1000);
+      roundNumEl.textContent = String(roundState.round);
+      letterEl.textContent = "⏳";
+      timeLeftEl.textContent = prepLeft + "s";
+      setStatus("Preparando...", "warn");
+      inputsWrap.classList.add("hidden");
+      gameActions.classList.add("hidden");
+      notInRound.classList.add("hidden");
+      return;
+    }
+
     roundNumEl.textContent = String(roundState.round);
     letterEl.textContent = roundState.letter;
     const left = computeTimeLeft();
@@ -469,8 +486,26 @@
     clearTimer();
     timer = setInterval(() => {
       if (!roundState) return;
+      
+      const now = nowMs();
+      const startsAt = roundState.startsAt || 0;
+      const isPreparing = now < startsAt;
+
+      if (isPreparing) {
+        const prepLeft = Math.ceil((startsAt - now) / 1000);
+        letterEl.textContent = "⏳";
+        timeLeftEl.textContent = prepLeft + "s";
+        setStatus("Preparando...", "warn");
+        return;
+      }
+
       const left = computeTimeLeft();
       
+      // If we just finished preparing, we might need to reveal inputs
+      if (inputsWrap.classList.contains("hidden") && !Boolean(roundState.endedAt)) {
+        renderRoundHeader();
+      }
+
       if (roundState.endsAt) {
         timeLeftEl.textContent = (left ?? "—") + "s";
       } else {
@@ -483,30 +518,59 @@
     }, 250);
   }
 
+  // ======== URL Obfuscation Helpers ========
+  function pack(obj) {
+    try {
+      const str = JSON.stringify(obj);
+      // Using btoa(unescape(encodeURIComponent())) for UTF-8 support
+      return btoa(unescape(encodeURIComponent(str)));
+    } catch (e) { return null; }
+  }
+
+  function unpack(str) {
+    try {
+      // Using decodeURIComponent(escape(atob())) for UTF-8 support
+      const decoded = decodeURIComponent(escape(atob(str)));
+      return JSON.parse(decoded);
+    } catch (e) { return null; }
+  }
+
   function getUrlRoundState() {
     const u = new URL(location.href);
+    const p = u.searchParams.get("p");
+    
+    // New packed format
+    if (p) {
+      const st = unpack(p);
+      if (st && st.room && st.round && st.letter && st.cats) return st;
+    }
+
+    // Fallback for old/legacy parameters
     const room = u.searchParams.get("room"), round = u.searchParams.get("round"), letter = u.searchParams.get("letter"), 
-          catsRaw = u.searchParams.get("cats"), endsAt = u.searchParams.get("endsAt"), endedAt = u.searchParams.get("endedAt");
+          catsRaw = u.searchParams.get("cats"), endsAt = u.searchParams.get("endsAt"), endedAt = u.searchParams.get("endedAt"),
+          startsAt = u.searchParams.get("startsAt");
     if (!room || !round || !letter || !catsRaw) return null;
     return { room, round: Number(round), letter, cats: decodeCats(catsRaw) || defaults.categories, 
+             startsAt: startsAt ? Number(startsAt) : null,
              endsAt: endsAt ? Number(endsAt) : null, endedAt: endedAt ? Number(endedAt) : null };
   }
 
   function setUrlFromState(st) {
     const u = new URL(location.href);
-    u.searchParams.set("room", st.room); u.searchParams.set("round", String(st.round)); u.searchParams.set("letter", st.letter);
-    u.searchParams.set("cats", encodeCats(st.cats)); 
-    if (st.endsAt) u.searchParams.set("endsAt", String(st.endsAt)); else u.searchParams.delete("endsAt");
-    if (st.endedAt) u.searchParams.set("endedAt", String(st.endedAt)); else u.searchParams.delete("endedAt");
+    // Clear old parameters
+    ["room", "round", "letter", "cats", "startsAt", "endsAt", "endedAt"].forEach(k => u.searchParams.delete(k));
+    
+    const p = pack(st);
+    if (p) u.searchParams.set("p", p);
     history.replaceState(null, "", u.toString());
   }
 
   function makeShareLink(st) {
     const u = new URL(location.href);
-    u.searchParams.set("room", st.room); u.searchParams.set("round", String(st.round)); u.searchParams.set("letter", st.letter);
-    u.searchParams.set("cats", encodeCats(st.cats));
-    if (st.endsAt) u.searchParams.set("endsAt", String(st.endsAt)); else u.searchParams.delete("endsAt");
-    if (st.endedAt) u.searchParams.set("endedAt", String(st.endedAt)); else u.searchParams.delete("endedAt");
+    ["room", "round", "letter", "cats", "startsAt", "endsAt", "endedAt"].forEach(k => u.searchParams.delete(k));
+    
+    const p = pack(st);
+    if (p) u.searchParams.set("p", p);
     return u.toString();
   }
 
@@ -560,13 +624,16 @@
     const categories = cats.length ? cats : (local.categories || defaults.categories);
     const currentRound = (roundState?.room === room) ? (Number(roundState.round) + 1) : 1;
     const useTimer = !noLimitEl.checked;
+    const now = nowMs();
+    const preparationMs = 15000;
 
     roundState = { 
       room, 
       round: currentRound, 
       letter: pickLetter(alphabet), 
       cats: categories, 
-      endsAt: useTimer ? (nowMs() + seconds * 1000) : null, 
+      startsAt: now + preparationMs,
+      endsAt: useTimer ? (now + preparationMs + seconds * 1000) : null, 
       endedAt: null 
     };
     
