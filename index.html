@@ -83,7 +83,7 @@
       </div>
 
       <div class="card" id="playCard">
-        <h2 style="text-align: center; margin-bottom: 16px;">Sua Planilha</h2>
+        <h2 id="sheetTitle" style="text-align: center; margin-bottom: 16px;">Sua Planilha</h2>
         
         <div id="notInRound" class="muted" style="padding: 20px 0;">
           Nenhuma rodada ativa.<br>Configure na aba anterior ou entre pelo link.
@@ -91,12 +91,47 @@
 
         <div id="inputsWrap" class="hidden"></div>
 
+        <!-- Post-Game Workflow -->
+        <div id="postGameSteps" class="hidden" style="margin-top: 20px; padding: 16px; border: 2px dashed var(--primary); border-radius: var(--radius); background: #f0f7ff;">
+          <h3 style="margin: 0 0 8px; font-size: 16px; color: var(--primary);">🏁 Rodada Encerrada!</h3>
+          <p style="font-size: 13px; margin: 0 0 12px; color: var(--text);">Para comparar os resultados:</p>
+          <ol style="font-size: 13px; padding-left: 20px; margin: 0; color: var(--text); line-height: 1.6;">
+            <li>Clique em <b>"📤 Enviar para o Grupo"</b> abaixo.</li>
+            <li>Cole o link no seu grupo de WhatsApp/Discord.</li>
+            <li>O anfitrião deve <b>clicar em todos os links</b> enviados para consolidar tudo na aba <b>"📊 Placar"</b>.</li>
+          </ol>
+        </div>
+
         <div id="gameActions" class="action-bar hidden">
           <button class="primary" id="stopBtn" style="background: var(--accent-warn);">🛑 STOP!</button>
-          <div class="row" style="margin-bottom: 0;">
-            <button id="copyBtn" class="secondary">📋 Copiar</button>
-            <button id="revealBtn" class="secondary">✨ Revelar</button>
+          
+          <div id="postGameActions" class="hidden">
+            <button id="copyBtn" class="primary" style="margin-bottom: 8px;">📤 Enviar para o Grupo (com respostas)</button>
+            <div class="row" style="margin-bottom: 0;">
+              <button id="revealBtn" class="secondary">✨ Ver Texto (p/ Chat)</button>
+              <button id="goToCompareBtn" class="secondary">📊 Ver Placar</button>
+            </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- View: Placar (Comparison) -->
+    <div id="view-compare" class="hidden">
+      <div id="importNotify" class="import-toast hidden">Respostas importadas!</div>
+      <div class="card">
+        <h2 style="text-align: center; margin-bottom: 4px;">Comparação</h2>
+        <div class="muted">Receba links de amigos para comparar aqui.</div>
+        
+        <div class="compare-table-wrap">
+          <table id="compareTable">
+            <thead><tr id="compareHead"></tr></thead>
+            <tbody id="compareBody"></tbody>
+          </table>
+        </div>
+
+        <div class="action-bar" style="margin-top: 16px;">
+          <button id="clearPeersBtn" class="secondary" style="font-size: 12px; padding: 8px;">Limpar outros jogadores</button>
         </div>
       </div>
     </div>
@@ -117,6 +152,9 @@
     </button>
     <button class="tab-btn" id="btn-tab-game">
       <span>✍️</span> Jogo
+    </button>
+    <button class="tab-btn" id="btn-tab-compare">
+      <span>📊</span> Placar
     </button>
   </nav>
 
