@@ -1,0 +1,12 @@
+# Protect SQLite database from direct access
+<Files "db.sqlite">
+    Order Allow,Deny
+    Deny from all
+</Files>
+
+# Basic security headers
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+</IfModule>

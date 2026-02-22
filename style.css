@@ -211,6 +211,23 @@ th {
   margin: 8px 0;
 }
 
+.player-list { margin-top: 16px; padding: 12px; border-radius: 8px; background: #f8f9fa; border: 1px solid #eee; }
+.player-list h3 { margin: 0 0 8px; font-size: 14px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; }
+.player-tag { display: inline-block; background: #e9ecef; padding: 4px 10px; border-radius: 20px; font-size: 13px; margin: 2px; border: 1px solid #dee2e6; color: var(--text); }
+.player-tag.online { border-color: var(--accent-ok); background: #e8f5e9; }
+
+/* SEO & Instructions */
+.seo-section { margin-top: 32px; padding: 16px; border-top: 1px solid var(--border); color: var(--text); }
+.seo-section h2 { font-size: 20px; text-align: center; margin-bottom: 16px; color: var(--primary); }
+.seo-section p { font-size: 14px; color: var(--muted); text-align: center; line-height: 1.6; margin-bottom: 24px; }
+.instruction-steps { display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px; }
+.step { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; line-height: 1.4; }
+.step-icon { font-size: 20px; }
+.marketing-blurb { background: #fff; padding: 16px; border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.marketing-blurb h3 { font-size: 16px; margin-bottom: 12px; color: var(--text); }
+.marketing-blurb ul { padding-left: 20px; margin: 0; }
+.marketing-blurb li { font-size: 13px; margin-bottom: 8px; color: var(--muted); }
+
 @media (min-width: 480px) {
   body { padding: 40px 0 calc(40px + var(--nav-height)); }
   .tab-bar { border-radius: 20px 20px 0 0; }

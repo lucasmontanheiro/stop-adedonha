@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-  <title>STOP / Adedonha</title>
+  <title>STOP / Adedonha Online — Jogo de Palavras Multiplayer Grátis</title>
+  <meta name="description" content="Jogue STOP (Adedonha) online com amigos em tempo real. Grátis, sem cadastro e otimizado para celular. Crie sua sala e comece a jogar agora!">
+  <meta name="keywords" content="stop online, adedonha online, jogo de palavras, multiplayer, grátis, brincadeira de stop">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,19 +14,23 @@
 
     <!-- View: Config -->
     <div id="view-config">
-      <div class="muted">Configurações da Sala</div>
+      <div class="muted">O melhor jogo de palavras online, grátis e em tempo real.</div>
       <div class="card">
         <div class="field-group">
           <label>Seu Nome</label>
           <input id="playerName" placeholder="Ex: Ana" />
         </div>
 
+        <div class="field-group">
+          <label>Código da Sala</label>
+          <div style="display:flex; gap:8px;">
+            <input id="roomId" placeholder="Ex: SALA123" />
+            <button id="joinBtn" class="secondary" style="margin:0; width:auto; padding:0 12px;">Entrar</button>
+          </div>
+        </div>
+
         <div id="extraSettings" class="hidden">
           <div class="row">
-            <div class="field-group">
-              <label>Room Code</label>
-              <input id="roomId" placeholder="ABC123" />
-            </div>
             <div class="field-group">
               <label>Tempo (s)</label>
               <div style="display:flex; align-items:center; gap:8px;">
@@ -42,7 +48,6 @@
           <div class="field-group">
             <label>Categorias (uma por linha)</label>
             <textarea id="categories" rows="5"></textarea>
-            <button id="applyCategoriesBtn" class="ghost" style="margin-top:4px">Salvar categorias localmente</button>
           </div>
         </div>
         
@@ -51,11 +56,48 @@
         </div>
 
         <div class="action-bar">
-          <button class="primary" id="startRoundBtn">🚀 Iniciar Nova Rodada</button>
-          <div class="row" style="margin-bottom: 0;">
-            <button id="joinBtn" class="secondary">🔗 Atualizar URL</button>
-            <button id="resetBtn" class="secondary" title="Reset local">🗑️ Reset</button>
+          <button class="primary" id="startRoundBtn">🚀 Iniciar Rodada</button>
+          <button id="resetBtn" class="ghost" style="font-size:11px;">🗑️ Reset Local</button>
+        </div>
+
+        <div id="configPlayerList" class="player-list hidden">
+          <h3>Jogadores na Sala</h3>
+          <div class="players-wrap"></div>
+        </div>
+      </div>
+
+      <!-- How to Play / SEO Section -->
+      <div class="seo-section">
+        <h2>Como Jogar STOP Online? 🎮</h2>
+        <p>O <strong>STOP</strong> (também conhecido como <em>Adedonha</em> ou <em>Adedonha</em>) é o clássico jogo de palavras que agora você pode jogar direto no navegador, sem baixar nada!</p>
+        
+        <div class="instruction-steps">
+          <div class="step">
+            <span class="step-icon">1️⃣</span>
+            <div><strong>Crie sua Sala:</strong> Escolha um nome e um código para sua sala e compartilhe com seus amigos.</div>
           </div>
+          <div class="step">
+            <span class="step-icon">2️⃣</span>
+            <div><strong>Sorteie a Letra:</strong> O sistema sorteia uma letra e todos começam a preencher as categorias ao mesmo tempo.</div>
+          </div>
+          <div class="step">
+            <span class="step-icon">3️⃣</span>
+            <div><strong>Dê o STOP:</strong> Seja o mais rápido! O primeiro a terminar clica em STOP para encerrar a rodada de todos.</div>
+          </div>
+          <div class="step">
+            <span class="step-icon">4️⃣</span>
+            <div><strong>Compare e Pontue:</strong> Veja as respostas de todos lado a lado no Placar e decida quem ganhou.</div>
+          </div>
+        </div>
+
+        <div class="marketing-blurb">
+          <h3>Por que jogar aqui?</h3>
+          <ul>
+            <li>✨ <strong>100% Grátis:</strong> Sem anúncios intrusivos ou cobranças.</li>
+            <li>🚀 <strong>Tempo Real:</strong> Sincronização instantânea entre todos os jogadores.</li>
+            <li>📱 <strong>Mobile First:</strong> Funciona perfeitamente no Android, iPhone e PC.</li>
+            <li>🔒 <strong>Privacidade:</strong> Sem necessidade de login ou cadastro.</li>
+          </ul>
         </div>
       </div>
     </div>
@@ -86,29 +128,18 @@
         <h2 id="sheetTitle" style="text-align: center; margin-bottom: 16px;">Sua Planilha</h2>
         
         <div id="notInRound" class="muted" style="padding: 20px 0;">
-          Nenhuma rodada ativa.<br>Configure na aba anterior ou entre pelo link.
+          Aguardando início da rodada...
         </div>
 
         <div id="inputsWrap" class="hidden"></div>
-
-        <!-- Post-Game Workflow -->
-        <div id="postGameSteps" class="hidden" style="margin-top: 20px; padding: 16px; border: 2px dashed var(--primary); border-radius: var(--radius); background: #f0f7ff;">
-          <h3 style="margin: 0 0 8px; font-size: 16px; color: var(--primary);">🏁 Rodada Encerrada!</h3>
-          <p style="font-size: 13px; margin: 0 0 12px; color: var(--text);">Para comparar os resultados:</p>
-          <ol style="font-size: 13px; padding-left: 20px; margin: 0; color: var(--text); line-height: 1.6;">
-            <li>Clique em <b>"📤 Enviar para o Grupo"</b> abaixo.</li>
-            <li>Cole o link no seu grupo de WhatsApp/Discord.</li>
-            <li>O anfitrião deve <b>clicar em todos os links</b> enviados para consolidar tudo na aba <b>"📊 Placar"</b>.</li>
-          </ol>
-        </div>
 
         <div id="gameActions" class="action-bar hidden">
           <button class="primary" id="stopBtn" style="background: var(--accent-warn);">🛑 STOP!</button>
           
           <div id="postGameActions" class="hidden">
-            <button id="copyBtn" class="primary" style="margin-bottom: 8px;">📤 Enviar para o Grupo (com respostas)</button>
+            <button id="submitBtn" class="primary" style="margin-bottom: 8px;">📤 Enviar Respostas</button>
             <div class="row" style="margin-bottom: 0;">
-              <button id="revealBtn" class="secondary">✨ Ver Texto (p/ Chat)</button>
+              <button id="revealBtn" class="secondary">✨ Ver Texto</button>
               <button id="goToCompareBtn" class="secondary">📊 Ver Placar</button>
             </div>
           </div>
@@ -118,20 +149,15 @@
 
     <!-- View: Placar (Comparison) -->
     <div id="view-compare" class="hidden">
-      <div id="importNotify" class="import-toast hidden">Respostas importadas!</div>
       <div class="card">
         <h2 style="text-align: center; margin-bottom: 4px;">Comparação</h2>
-        <div class="muted">Receba links de amigos para comparar aqui.</div>
+        <div class="muted" id="compareMuted">Aguardando respostas dos jogadores...</div>
         
         <div class="compare-table-wrap">
           <table id="compareTable">
             <thead><tr id="compareHead"></tr></thead>
             <tbody id="compareBody"></tbody>
           </table>
-        </div>
-
-        <div class="action-bar" style="margin-top: 16px;">
-          <button id="clearPeersBtn" class="secondary" style="font-size: 12px; padding: 8px;">Limpar outros jogadores</button>
         </div>
       </div>
     </div>

@@ -1,59 +1,12 @@
 (() => {
   const el = (id) => document.getElementById(id);
 
-  // ======== Tabs ========
-  const views = {
-    config: el("view-config"),
-    game: el("view-game"),
-    compare: el("view-compare")
-  };
-  const tabBtns = {
-    config: el("btn-tab-config"),
-    game: el("btn-tab-game"),
-    compare: el("btn-tab-compare")
-  };
-
-  function switchTab(tabId) {
-    if (el("revealCard").classList.contains("hidden") === false) {
-      backReveal();
-    }
-    Object.keys(views).forEach(k => {
-      views[k].classList.toggle("hidden", k !== tabId);
-      tabBtns[k].classList.toggle("active", k === tabId);
-    });
-    if (tabId === "compare") renderCompareTable();
-  }
-
-  tabBtns.config.addEventListener("click", () => switchTab("config"));
-  tabBtns.game.addEventListener("click", () => switchTab("game"));
-  tabBtns.compare.addEventListener("click", () => switchTab("compare"));
-
-  // ======== Settings UI Toggle ========
-  const toggleSettingsBtn = el("toggleSettingsBtn");
-  const extraSettings = el("extraSettings");
-  let settingsVisible = false;
-
-  toggleSettingsBtn.addEventListener("click", () => {
-    settingsVisible = !settingsVisible;
-    extraSettings.classList.toggle("hidden", !settingsVisible);
-    toggleSettingsBtn.textContent = settingsVisible ? "Fechar Configurações ↑" : "Configurações Avançadas ↓";
-  });
-
-  // ======== Local persistence ========
-  const storeKey = "stop_linkroom_v1";
-  const getPeersKey = () => `stop_peers_${roundState?.room}_${roundState?.round}`;
-  
-  const loadLocal = () => {
-    try { return JSON.parse(localStorage.getItem(storeKey)) ?? {}; }
-    catch { return {}; }
-  };
-  const saveLocal = (obj) => localStorage.setItem(storeKey, JSON.stringify(obj));
-
-  const loadPeers = () => {
-    try { return JSON.parse(localStorage.getItem(getPeersKey())) ?? {}; }
-    catch { return {}; }
-  };
-  const savePeers = (peers) => localStorage.setItem(getPeersKey(), JSON.stringify(peers));
+  // ======== State ========
+  let roomState = null; // From server: { room: {code, round, letter, categories, starts_at, ends_at, ended_at, status}, players: [...] }
+  let lastSync = 0;
+  let pollingTimer = null;
+  let localTimer = null;
+  let serverTimeOffset = 0;
 
   const defaults = {
     playerName: "",
@@ -64,10 +17,28 @@
     categories: ["Nome", "Animal", "Cidade", "Objeto", "Comida", "Profissão"]
   };
 
-  let roundState = null;
-  let timer = null;
+  const storeKey = "stop_php_v1";
+  const loadLocal = () => {
+    try { return JSON.parse(localStorage.getItem(storeKey)) ?? {}; }
+    catch { return {}; }
+  };
+  const saveLocal = (obj) => localStorage.setItem(storeKey, JSON.stringify(obj));
 
-  // ======== UI refs ========
+  function getAnswersKey() {
+    const rc = roomState?.room?.code || el("roomId").value.trim();
+    const rd = roomState?.room?.round || 0;
+    return `stop_ans_${rc}_${rd}`;
+  }
+  const loadAnswers = () => {
+    try { return JSON.parse(localStorage.getItem(getAnswersKey())) ?? {}; }
+    catch { return {}; }
+  };
+  const saveAnswers = (ans) => localStorage.setItem(getAnswersKey(), JSON.stringify(ans));
+
+  // ======== UI Refs ========
+  const views = { config: el("view-config"), game: el("view-game"), compare: el("view-compare") };
+  const tabBtns = { config: el("btn-tab-config"), game: el("btn-tab-game"), compare: el("btn-tab-compare") };
+  
   const playerNameEl = el("playerName");
   const roomIdEl = el("roomId");
   const secondsEl = el("seconds");
@@ -84,25 +55,20 @@
   const notInRound = el("notInRound");
   const gameActions = el("gameActions");
   const stopBtn = el("stopBtn");
-  const postGameSteps = el("postGameSteps");
   const postGameActions = el("postGameActions");
-  const revealCard = el("revealCard");
-  const answersOut = el("answersOut");
-  const tabBar = el("tabBar");
+  
+  const configPlayerList = el("configPlayerList");
+  const configPlayersWrap = configPlayerList.querySelector(".players-wrap");
+  const compareMuted = el("compareMuted");
 
   // ======== Helpers ========
-  function normalizeCategory(s) { return s.trim().replace(/\s+/g, " "); }
-  function encodeCats(cats) { return encodeURIComponent(cats.join("|")); }
-  function decodeCats(raw) {
-    if (!raw) return null;
-    return decodeURIComponent(raw).split("|").map(normalizeCategory).filter(Boolean);
-  }
-  function pickLetter(alphabet) {
-    const alpha = (alphabet || "").replace(/[^A-Za-zÀ-ÿ]/g, "").toUpperCase();
-    if (!alpha.length) return "A";
-    return alpha[Math.floor(Math.random() * alpha.length)];
-  }
-  function nowMs() { return Date.now(); }
+  const nowMs = () => Date.now() + serverTimeOffset;
+  const normalizeCategory = (s) => s.trim().replace(/\s+/g, " ");
+  const randomRoomCode = () => Math.random().toString(36).substring(2, 8).toUpperCase();
+  const pickLetter = (alphabet) => {
+    const alpha = (alphabet || "").replace(/[^A-Z]/g, "").toUpperCase();
+    return alpha.length ? alpha[Math.floor(Math.random() * alpha.length)] : "A";
+  };
 
   function setStatus(text, kind) {
     statusEl.textContent = text.toUpperCase();
@@ -110,24 +76,148 @@
     if (kind) statusEl.classList.add(kind);
   }
 
-  function clearTimer() { if (timer) clearInterval(timer); timer = null; }
+  // ======== Tabs ========
+  function switchTab(tabId) {
+    if (!el("revealCard").classList.contains("hidden")) backReveal();
+    Object.keys(views).forEach(k => {
+      views[k].classList.toggle("hidden", k !== tabId);
+      tabBtns[k].classList.toggle("active", k === tabId);
+    });
+    if (tabId === "compare") renderCompareTable();
+  }
+  Object.keys(tabBtns).forEach(k => tabBtns[k].addEventListener("click", () => switchTab(k)));
 
-  function getAnswersKey() {
-    const room = roundState?.room || roomIdEl.value.trim();
-    const round = roundState?.round || "0";
-    return `stop_answers_${room}_${round}`;
+  // ======== API ========
+  async function api(action, params = {}) {
+    const rc = params.room_code || roomIdEl.value.trim();
+    const pn = params.player_name || playerNameEl.value.trim();
+    const url = new URL("api.php", location.href);
+    url.searchParams.set("action", action);
+    url.searchParams.set("room_code", rc);
+    url.searchParams.set("player_name", pn);
+    url.searchParams.set("_t", Date.now()); // Cache buster
+
+    const opts = { method: "GET" };
+    if (params.body) {
+      opts.method = "POST";
+      opts.body = new FormData();
+      for (const k in params.body) opts.body.append(k, params.body[k]);
+    }
+
+    try {
+      const resp = await fetch(url, opts);
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      return data;
+    } catch (e) {
+      console.error("API Error:", e);
+      return null;
+    }
   }
 
-  function loadAnswers() {
-    try { return JSON.parse(localStorage.getItem(getAnswersKey())) ?? {}; }
-    catch { return {}; }
+  // ======== Core Logic ========
+  async function sync() {
+    const rc = roomIdEl.value.trim();
+    if (!rc) return;
+
+    const startFetch = Date.now();
+    const data = await api("status");
+    if (!data) return;
+
+    if (data.server_time) {
+      const endFetch = Date.now();
+      const rtt = endFetch - startFetch;
+      // Assume the server time was captured exactly in the middle of the request
+      serverTimeOffset = (data.server_time - (endFetch - rtt / 2));
+    }
+
+    const oldStatus = roomState?.room?.status;
+    const oldRound = roomState?.room?.round;
+    roomState = data;
+
+    // Detection of state changes
+    if (oldStatus !== roomState.room.status || oldRound !== roomState.room.round) {
+      if (roomState.room.status === 'playing' && oldStatus !== 'playing') {
+        switchTab("game");
+      }
+      buildInputs(roomState.room.status === 'ended');
+    }
+
+    renderUI();
   }
 
-  function saveAnswers(ans) { localStorage.setItem(getAnswersKey(), JSON.stringify(ans)); }
+  function renderUI() {
+    if (!roomState) return;
+
+    const room = roomState.room;
+    const players = roomState.players;
+
+    // Update Config View
+    if (room.code) {
+      configPlayerList.classList.remove("hidden");
+      configPlayersWrap.innerHTML = "";
+      players.forEach(p => {
+        const span = document.createElement("span");
+        span.className = "player-tag online";
+        span.textContent = p.name;
+        configPlayersWrap.appendChild(span);
+      });
+    }
+
+    // Update Game Stats
+    roundNumEl.textContent = room.round || "—";
+    
+    const now = nowMs();
+    const isPreparing = room.starts_at && now < room.starts_at;
+    const isEnded = room.status === 'ended' || (room.ends_at && now >= room.ends_at);
+
+    if (isPreparing) {
+      const left = Math.ceil((room.starts_at - now) / 1000);
+      letterEl.textContent = "⏳";
+      timeLeftEl.textContent = left + "s";
+      setStatus("Preparando...", "warn");
+      inputsWrap.classList.add("hidden");
+      gameActions.classList.add("hidden");
+      notInRound.classList.add("hidden");
+    } else if (room.status === 'playing' && !isEnded) {
+      letterEl.textContent = room.letter;
+      if (room.ends_at) {
+        const left = Math.max(0, Math.ceil((room.ends_at - now) / 1000));
+        timeLeftEl.textContent = left + "s";
+      } else {
+        timeLeftEl.textContent = "∞";
+      }
+      setStatus("Em jogo", "ok");
+      inputsWrap.classList.remove("hidden");
+      gameActions.classList.remove("hidden");
+      stopBtn.classList.remove("hidden");
+      postGameActions.classList.add("hidden");
+      notInRound.classList.add("hidden");
+    } else if (isEnded) {
+      letterEl.textContent = room.letter;
+      timeLeftEl.textContent = "0s";
+      setStatus("Encerrada", "warn");
+      inputsWrap.classList.remove("hidden");
+      gameActions.classList.remove("hidden");
+      stopBtn.classList.add("hidden");
+      postGameActions.classList.remove("hidden");
+      notInRound.classList.add("hidden");
+    } else {
+      roundNumEl.textContent = "—"; letterEl.textContent = "—"; timeLeftEl.textContent = "—";
+      setStatus("Sem rodada");
+      inputsWrap.classList.add("hidden");
+      gameActions.classList.add("hidden");
+      notInRound.classList.remove("hidden");
+    }
+
+    if (views.compare.classList.contains("hidden") === false) {
+      renderCompareTable();
+    }
+  }
 
   function buildInputs(readOnly = false) {
     inputsWrap.innerHTML = "";
-    const cats = (roundState?.cats || []).map(normalizeCategory).filter(Boolean);
+    const cats = roomState?.room?.categories || [];
     const answers = loadAnswers();
     const grid = document.createElement("div");
     grid.className = "grid";
@@ -138,7 +228,7 @@
       const label = document.createElement("label");
       label.textContent = cat;
       const input = document.createElement("input");
-      input.placeholder = roundState?.letter ? `Começa com "${roundState.letter}"…` : "";
+      input.placeholder = roomState?.room?.letter ? `Começa com "${roomState.room.letter}"…` : "";
       input.value = answers[cat] ?? "";
       if (readOnly) input.disabled = true;
 
@@ -154,373 +244,169 @@
     inputsWrap.appendChild(grid);
   }
 
-  function computeTimeLeft() {
-    if (!roundState?.endsAt) return null;
-    const end = Number(roundState.endedAt || roundState.endsAt);
-    return Math.max(0, Math.ceil((end - nowMs()) / 1000));
-  }
-
-  function renderRoundHeader() {
-    if (!roundState) {
-      roundNumEl.textContent = "—"; letterEl.textContent = "—"; timeLeftEl.textContent = "—";
-      setStatus("Sem rodada");
-      inputsWrap.classList.add("hidden"); gameActions.classList.add("hidden"); notInRound.classList.remove("hidden");
-      postGameSteps.classList.add("hidden"); postGameActions.classList.add("hidden");
-      return;
-    }
-
-    const now = nowMs();
-    const startsAt = roundState.startsAt || 0;
-    const isPreparing = now < startsAt;
-
-    if (isPreparing) {
-      const prepLeft = Math.ceil((startsAt - now) / 1000);
-      roundNumEl.textContent = String(roundState.round);
-      letterEl.textContent = "⏳";
-      timeLeftEl.textContent = prepLeft + "s";
-      setStatus("Preparando...", "warn");
-      inputsWrap.classList.add("hidden");
-      gameActions.classList.add("hidden");
-      notInRound.classList.add("hidden");
-      postGameSteps.classList.add("hidden");
-      postGameActions.classList.add("hidden");
-      return;
-    }
-
-    roundNumEl.textContent = String(roundState.round);
-    letterEl.textContent = roundState.letter;
-    const left = computeTimeLeft();
-
-    if (roundState.endsAt) {
-      timeLeftEl.textContent = (left ?? "—") + "s";
-    } else {
-      timeLeftEl.textContent = "∞";
-    }
-
-    const ended = Boolean(roundState.endedAt) || (roundState.endsAt && left === 0);
-    
-    if (ended) {
-      setStatus("Encerrada", "warn");
-      stopBtn.classList.add("hidden");
-      postGameSteps.classList.remove("hidden");
-      postGameActions.classList.remove("hidden");
-      buildInputs(true); // make read only
-    } else {
-      setStatus("Em jogo", "ok");
-      stopBtn.classList.remove("hidden");
-      postGameSteps.classList.add("hidden");
-      postGameActions.classList.add("hidden");
-    }
-
-    inputsWrap.classList.remove("hidden");
-    gameActions.classList.remove("hidden");
-    notInRound.classList.add("hidden");
-  }
-
-  function startTicking() {
-    clearTimer();
-    timer = setInterval(() => {
-      if (!roundState) return;
-
-      const now = nowMs();
-      const startsAt = roundState.startsAt || 0;
-      const isPreparing = now < startsAt;
-
-      if (isPreparing) {
-        const prepLeft = Math.ceil((startsAt - now) / 1000);
-        letterEl.textContent = "⏳";
-        timeLeftEl.textContent = prepLeft + "s";
-        setStatus("Preparando...", "warn");
-        return;
-      }
-
-      const left = computeTimeLeft();
-      const ended = Boolean(roundState.endedAt) || (roundState.endsAt && left === 0);
-
-      // Transition from preparing or from active to ended
-      if (ended && !postGameSteps.classList.contains("hidden") === false) {
-        renderRoundHeader();
-      } else if (!ended && inputsWrap.classList.contains("hidden")) {
-        renderRoundHeader();
-      }
-
-      if (roundState.endsAt) {
-        timeLeftEl.textContent = (left ?? "—") + "s";
-      } else {
-        timeLeftEl.textContent = "∞";
-      }
-
-      if (ended) {
-        setStatus("Encerrada", "warn");
-      }
-    }, 250);
-  }
-
-  // ======== URL Obfuscation Helpers ========
-  function pack(obj) {
-    try {
-      const str = JSON.stringify(obj);
-      return btoa(unescape(encodeURIComponent(str)));
-    } catch (e) { return null; }
-  }
-
-  function unpack(str) {
-    try {
-      const decoded = decodeURIComponent(escape(atob(str)));
-      return JSON.parse(decoded);
-    } catch (e) { return null; }
-  }
-
-  function getUrlRoundState() {
-    const u = new URL(location.href);
-    const p = u.searchParams.get("p");
-
-    if (p) {
-      const st = unpack(p);
-      if (st && st.room && st.round && st.letter && st.cats) {
-        if (st.ans && st.player) {
-          importPeerAnswers(st.player, st.ans, st.room, st.round);
-        }
-        return st;
-      }
-    }
-
-    const room = u.searchParams.get("room"), round = u.searchParams.get("round"), letter = u.searchParams.get("letter"),
-          catsRaw = u.searchParams.get("cats"), endsAt = u.searchParams.get("endsAt"), endedAt = u.searchParams.get("endedAt"),
-          startsAt = u.searchParams.get("startsAt");
-    if (!room || !round || !letter || !catsRaw) return null;
-    return { room, round: Number(round), letter, cats: decodeCats(catsRaw) || defaults.categories,
-             startsAt: startsAt ? Number(startsAt) : null,
-             endsAt: endsAt ? Number(endsAt) : null, endedAt: endedAt ? Number(endedAt) : null };
-  }
-
-  function importPeerAnswers(name, answers, room, round) {
-    const localName = playerNameEl.value.trim() || "Eu";
-    if (name === localName) return;
-
-    const key = `stop_peers_${room}_${round}`;
-    const peers = JSON.parse(localStorage.getItem(key) || "{}");
-    peers[name] = answers;
-    localStorage.setItem(key, JSON.stringify(peers));
-    
-    const toast = el("importNotify");
-    toast.textContent = `Respostas de ${name} importadas!`;
-    toast.classList.remove("hidden");
-    setTimeout(() => toast.classList.add("hidden"), 3000);
-  }
-
-  function setUrlFromState(st) {
-    const u = new URL(location.href);
-    ["room", "round", "letter", "cats", "startsAt", "endsAt", "endedAt", "p"].forEach(k => u.searchParams.delete(k));
-    const p = pack(st);
-    if (p) u.searchParams.set("p", p);
-    history.replaceState(null, "", u.toString());
-  }
-
-  function makeShareLink(st, includeAnswers = false) {
-    const u = new URL(location.href);
-    ["room", "round", "letter", "cats", "startsAt", "endsAt", "endedAt", "p"].forEach(k => u.searchParams.delete(k));
-    const data = { ...st };
-    if (includeAnswers) {
-      data.ans = loadAnswers();
-      data.player = playerNameEl.value.trim() || "Jogador";
-    }
-    const p = pack(data);
-    if (p) u.searchParams.set("p", p);
-    return u.toString();
-  }
-
-  async function copyText(text) {
-    try { await navigator.clipboard.writeText(text); return true; }
-    catch {
-      const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
-      ta.select(); const ok = document.execCommand("copy"); document.body.removeChild(ta); return ok;
-    }
-  }
-
-  function answersToText() {
-    const name = (playerNameEl.value || "").trim() || "Jogador";
-    const cats = (roundState?.cats || defaults.categories);
-    const answers = loadAnswers();
-    const lines = [`👤 ${name}\n📍 Sala ${roundState?.room}\n🔢 Rodada ${roundState?.round}\n🔠 Letra: ${roundState?.letter}`, ""];
-    for (const cat of cats) { lines.push(`${cat}: ${(answers[cat] ?? "").trim() || "—"}`); }
-    return lines.join("\n");
-  }
-
-  // ======== Actions ========
-  function applyCategoriesFromTextarea() {
-    const cats = categoriesEl.value.split("\n").map(normalizeCategory).filter(Boolean);
-    const local = loadLocal(); local.categories = cats.length ? cats : defaults.categories; saveLocal(local);
-  }
-
-  function joinFromUrl() {
-    const st = getUrlRoundState();
-    roundState = st;
-    if (roundState) {
-      roomIdEl.value = roundState.room;
-      categoriesEl.value = (roundState.cats || []).join("\n");
-      buildInputs();
-      renderRoundHeader();
-      startTicking();
-      const u = new URL(location.href);
-      if (u.searchParams.get("p") && unpack(u.searchParams.get("p")).ans) {
-        switchTab("compare");
-      } else {
-        switchTab("game");
-      }
-    } else {
-      roundState = null;
-      renderRoundHeader();
-      clearTimer();
-      switchTab("config");
-    }
-  }
-
   function renderCompareTable() {
-    if (!roundState) return;
-    const cats = roundState.cats;
+    if (!roomState) return;
+    const cats = roomState.room.categories;
     const myName = playerNameEl.value.trim() || "Eu";
-    const myAns = loadAnswers();
-    const peers = loadPeers();
-    const peerNames = Object.keys(peers);
+    const playersWithAnswers = roomState.players.filter(p => p.answers);
+
+    if (playersWithAnswers.length === 0) {
+      compareMuted.classList.remove("hidden");
+      el("compareTable").classList.add("hidden");
+      return;
+    }
+    compareMuted.classList.add("hidden");
+    el("compareTable").classList.remove("hidden");
 
     const head = el("compareHead");
     const body = el("compareBody");
-    head.innerHTML = "<th>Categoria</th><th class='my-col'>" + myName + "</th>";
-    peerNames.forEach(name => {
+    head.innerHTML = "<th>Categoria</th>";
+    
+    playersWithAnswers.forEach(p => {
       const th = document.createElement("th");
-      th.textContent = name;
+      th.textContent = p.name + (p.name === myName ? " (Você)" : "");
       head.appendChild(th);
     });
 
     body.innerHTML = "";
     cats.forEach(cat => {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${cat}</td><td class='my-col'>${myAns[cat] || "—"}</td>`;
-      peerNames.forEach(name => {
+      const tdCat = document.createElement("td");
+      tdCat.textContent = cat;
+      tr.appendChild(tdCat);
+      
+      playersWithAnswers.forEach(p => {
         const td = document.createElement("td");
-        td.textContent = peers[name][cat] || "—";
+        td.textContent = (p.answers && p.answers[cat]) || "—";
         tr.appendChild(td);
       });
       body.appendChild(tr);
     });
   }
 
+  // ======== Actions ========
+  async function joinRoom() {
+    const name = playerNameEl.value.trim();
+    const rc = roomIdEl.value.trim();
+    if (!name || !rc) return alert("Preencha nome e código da sala!");
+    
+    const data = await api("join");
+    if (data) {
+      saveLocal({ ...loadLocal(), playerName: name, roomId: rc });
+      startPolling();
+      sync();
+    }
+  }
+
   async function startNewRound() {
-    const local = loadLocal();
-    const room = (roomIdEl.value || "").trim() || randomRoomCode();
+    const name = playerNameEl.value.trim();
+    let rc = roomIdEl.value.trim();
+    if (!name) return alert("Preencha seu nome!");
+    if (!rc) {
+      rc = randomRoomCode();
+      roomIdEl.value = rc;
+    }
+
+    // Join first
+    await api("join");
+
     const seconds = Math.max(10, Math.min(600, Number(secondsEl.value || defaults.seconds)));
     const alphabet = String(alphabetEl.value || defaults.alphabet).toUpperCase();
-    const cats = (categoriesEl.value || "").split("\n").map(normalizeCategory).filter(Boolean);
-    const categories = cats.length ? cats : (local.categories || defaults.categories);
-    const currentRound = (roundState?.room === room) ? (Number(roundState.round) + 1) : 1;
-    const useTimer = !noLimitEl.checked;
-    const now = nowMs();
-    const preparationMs = 15000;
+    const cats = categoriesEl.value.split("\n").map(normalizeCategory).filter(Boolean);
+    const finalCats = cats.length ? cats : defaults.categories;
+    const currentRound = (roomState?.room?.code === rc) ? (Number(roomState.room.round) + 1) : 1;
 
-    roundState = {
-      room, round: currentRound, letter: pickLetter(alphabet), cats: categories,
-      startsAt: now + preparationMs,
-      endsAt: useTimer ? (now + preparationMs + seconds * 1000) : null,
-      endedAt: null
+    const body = {
+      letter: pickLetter(alphabet),
+      seconds: seconds,
+      categories: finalCats.join("|"),
+      round: currentRound,
+      noLimit: noLimitEl.checked
     };
 
-    saveLocal({ ...defaults, ...local, roomId: room, seconds, noLimit: noLimitEl.checked, alphabet, categories, playerName: playerNameEl.value || local.playerName || "" });
-    setUrlFromState(roundState);
-    roomIdEl.value = room;
-    localStorage.removeItem(getAnswersKey());
-    buildInputs();
-    renderRoundHeader();
-    startTicking();
-    switchTab("game");
-    await copyText(makeShareLink(roundState));
-    alert("Link da rodada copiado!");
-  }
-
-  async function stopRoundGenerateEndedLink() {
-    if (!roundState) return;
-    const isEnded = roundState.endedAt || (roundState.endsAt && computeTimeLeft() === 0);
-    if (!isEnded) {
-      roundState.endedAt = nowMs();
-      setUrlFromState(roundState);
-      renderRoundHeader();
+    const data = await api("start", { body });
+    if (data) {
+      localStorage.removeItem(getAnswersKey());
+      startPolling();
+      sync();
     }
-    await copyText(makeShareLink(roundState));
-    alert("STOP! Link encerrado copiado.");
   }
 
-  async function copyMyAnswers() {
-    if (!roundState) return;
-    const link = makeShareLink(roundState, true);
-    const ok = await copyText(link);
-    alert(ok ? "Link com suas respostas copiado! Envie para o grupo." : "Erro ao copiar.");
+  async function stopRound() {
+    await api("stop");
+    sync();
   }
 
-  function revealForChat() {
-    if (!roundState) return;
-    answersOut.textContent = answersToText();
-    revealCard.classList.remove("hidden");
-    views.config.classList.add("hidden");
-    views.game.classList.add("hidden");
-    views.compare.classList.add("hidden");
-    tabBar.classList.add("hidden");
+  async function submitAnswers() {
+    const ans = JSON.stringify(loadAnswers());
+    const data = await api("submit", { body: { answers: ans } });
+    if (data) {
+      alert("Respostas enviadas!");
+      switchTab("compare");
+    }
   }
 
-  function backReveal() {
-    revealCard.classList.add("hidden");
-    tabBar.classList.remove("hidden");
-    switchTab("game");
+  function startPolling() {
+    if (pollingTimer) clearInterval(pollingTimer);
+    pollingTimer = setInterval(sync, 2500);
+    
+    if (localTimer) clearInterval(localTimer);
+    localTimer = setInterval(renderUI, 500);
   }
 
-  function resetLocal() {
-    if(!confirm("Resetar preferências?")) return;
-    localStorage.removeItem(storeKey);
-    saveLocal({ ...defaults });
-    hydrateFromLocal();
-  }
-
-  function hydrateFromLocal() {
-    const local = { ...defaults, ...loadLocal() };
-    playerNameEl.value = local.playerName || "";
-    roomIdEl.value = local.roomId || "";
-    secondsEl.value = local.seconds || defaults.seconds;
-    noLimitEl.checked = !!local.noLimit;
-    alphabetEl.value = local.alphabet || defaults.alphabet;
-    categoriesEl.value = (local.categories || defaults.categories).join("\n");
-  }
-
-  function savePrefsOnChange() {
-    const local = { ...defaults, ...loadLocal() };
-    local.playerName = playerNameEl.value || "";
-    local.roomId = roomIdEl.value || "";
-    local.seconds = Math.max(10, Math.min(600, Number(secondsEl.value || defaults.seconds)));
-    local.noLimit = noLimitEl.checked;
-    local.alphabet = String(alphabetEl.value || defaults.alphabet).toUpperCase();
-    saveLocal(local);
-  }
-
-  el("applyCategoriesBtn").addEventListener("click", () => { applyCategoriesFromTextarea(); alert("Categorias salvas!"); });
+  // ======== UI Events ========
+  el("joinBtn").addEventListener("click", joinRoom);
   el("startRoundBtn").addEventListener("click", startNewRound);
-  el("joinBtn").addEventListener("click", joinFromUrl);
-  el("stopBtn").addEventListener("click", stopRoundGenerateEndedLink);
-  el("copyBtn").addEventListener("click", copyMyAnswers);
-  el("revealBtn").addEventListener("click", revealForChat);
+  el("stopBtn").addEventListener("click", stopRound);
+  el("submitBtn").addEventListener("click", submitAnswers);
+  el("revealBtn").addEventListener("click", () => {
+    const name = playerNameEl.value.trim() || "Jogador";
+    const cats = roomState?.room?.categories || [];
+    const ans = loadAnswers();
+    let txt = `👤 ${name}\n📍 Sala ${roomState?.room?.code}\n🔢 Rodada ${roomState?.room?.round}\n🔠 Letra: ${roomState?.room?.letter}\n\n`;
+    cats.forEach(c => txt += `${c}: ${ans[c] || "—"}\n`);
+    el("answersOut").textContent = txt;
+    el("revealCard").classList.remove("hidden");
+    el("tabBar").classList.add("hidden");
+  });
   el("backBtn").addEventListener("click", backReveal);
-  el("resetBtn").addEventListener("click", resetLocal);
-  el("goToCompareBtn").addEventListener("click", () => switchTab("compare"));
-  el("clearPeersBtn").addEventListener("click", () => {
-    if(confirm("Limpar respostas dos outros jogadores?")) {
-      localStorage.removeItem(getPeersKey());
-      renderCompareTable();
+  el("resetBtn").addEventListener("click", () => {
+    if (confirm("Resetar preferências locais?")) {
+      localStorage.clear();
+      location.reload();
     }
   });
 
-  playerNameEl.addEventListener("change", savePrefsOnChange);
-  roomIdEl.addEventListener("change", savePrefsOnChange);
-  secondsEl.addEventListener("change", savePrefsOnChange);
-  noLimitEl.addEventListener("change", savePrefsOnChange);
-  alphabetEl.addEventListener("change", savePrefsOnChange);
+  function backReveal() {
+    el("revealCard").classList.add("hidden");
+    el("tabBar").classList.remove("hidden");
+  }
 
-  hydrateFromLocal();
-  joinFromUrl();
+  // Settings Toggle
+  el("toggleSettingsBtn").addEventListener("click", () => {
+    const hidden = el("extraSettings").classList.toggle("hidden");
+    el("toggleSettingsBtn").textContent = hidden ? "Configurações Avançadas ↓" : "Fechar Configurações ↑";
+  });
+
+  // Init
+  const local = { ...defaults, ...loadLocal() };
+  playerNameEl.value = local.playerName;
+  roomIdEl.value = local.roomId;
+  secondsEl.value = local.seconds;
+  noLimitEl.checked = local.noLimit;
+  alphabetEl.value = local.alphabet;
+  categoriesEl.value = local.categories.join("\n");
+
+  // Resync when tab becomes visible (handles mobile sleep/tab switch)
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      sync();
+    }
+  });
+
+  if (local.roomId && local.playerName) {
+    startPolling();
+    sync();
+  }
+
 })();
